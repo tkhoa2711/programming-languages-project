@@ -24,18 +24,15 @@
 ;;	)
 ;;
 ;; Postpaid plans by the telcos
-(define postpaid_plan 
-	'(
-		(Singtel 
-			#(3G_Flexi_Lite 39.90 #(FREE 100 800 2) #(0 0.1605 2 0.0535 5.35))
-			#(3G_Flexi_Value 59.90 #(FREE 200 900 3) #(0 0.1605 2 0.0535 5.35))
-			#(One_Plus #(-1 1200 400 2)))
-		(M1
-			#(ValueSurf+ ())
-			#(LiteSurf+ ()))
-	)
-)
 
+(define Singtel_3G_Flexi_Lite	#(3G_Flexi_Lite 39.90 #(FREE 100 800 2) #(0 0.1605 0.0535 5.35)))
+(define Singtel_3G_Flexi_Value	#(3G_Flexi_Value 59.90 #(FREE 200 900 3) #(0 0.1605 0.0535 5.35)))
+(define M1_ValueSurf #())
+
+(define postpaid_plans
+	(list	Singtel_3G_Flexi_Value
+			Singtel_3G_Flexi_Lite))
+	
 (define (get-plan-price plan)
 	(vector-ref plan 1))
 
@@ -58,16 +55,51 @@
 	(vector-ref (get-usage plan) 3))
 
 (define calculate-cost
-	(lambda(user plan)
+	(lambda (user plan)
 		(let ((cost (get-plan-price plan)))
-			(begin 
-				((if (> (get-incoming-call user) (get-incoming-call plan))
-					(+ cost 
-						(* (- (get-incoming-call user) (get-incoming-call plan))
-								(get-incoming-call (get-excess plan))))))
-				))))
+			(begin
+				(display "-------------") (newline)
+				(cond 	((eq? (get-incoming-call plan) 'FREE) (display "No excess incoming call\n"))
+						((> (get-incoming-call user) (get-incoming-call plan))
+							(set! cost 
+								(+ 	cost 
+									(* 	(- (get-incoming-call user) (get-incoming-call plan))
+										(vector-ref (get-excess plan) 0)))))
+						(else (display "No excess incoming call\n")))
+				(cond 	((eq? (get-outgoing-call plan) 'FREE) (display "No excess outgoing call\n"))
+						((> (get-outgoing-call user) (get-outgoing-call plan))
+							(set! cost 
+								(+ cost 
+									(* 	(- (get-outgoing-call user) (get-outgoing-call plan))
+										(vector-ref (get-excess plan) 1)))))
+						(else (display "No excess outgoing call\n")))				
+				(cond 	((eq? (get-sms plan) 'FREE) (display "No excess SMS usage\n"))	
+						((> (get-sms user) (get-sms plan))
+							(set! cost 
+								(+ 	cost 
+									(* 	(- (get-sms user) (get-sms plan))
+										(vector-ref (get-excess plan) 2)))))
+						(else (display "No excess SMSs usage\n")))
+				(cond 	((eq? (get-data plan) 'FREE) (display "No excess data usage\n"))	
+						((> (get-data user) (get-data plan))
+							(set! cost
+								(+ 	cost 
+									(* 	(- (get-data user) (get-data plan))
+										(vector-ref (get-excess plan) 3)))))
+						(else (display "No excess data usage\n")))
+				(display (vector-ref plan 0)) (display ": ")
+				(display cost) (newline)
+				(display "-------------") (newline)
+				cost))))
 
-(define (search-best-plan user postpaid_plan))
+(define search-best-plan
+	(lambda (user postpaid_plans)
+		(letrec ((search 
+					(lambda (u ls)
+						(if (null? ls)
+							'()
+							(cons (calculate-cost u (car ls)) (search u (cdr ls)))))))
+			(apply min (search user postpaid_plans)))))
 
 
 ;; Usage pattern: #(vendor plan #(incoming_call outgoing_call sms data))
@@ -79,5 +111,6 @@
 ;;
 ;; Define 3 test cases
 
-(define user1 #(Singtel 3G_Flexi_Lite #(200 300 300 4)))
-(searchBestPlan user1 postpaid_plan)
+(define user1 #(3G_Flexi_Lite 39.90 #(200 300 300 4)))
+;;(calculate-cost user1 Singtel_3G_Flexi_Lite)
+(search-best-plan user1 postpaid_plans)
