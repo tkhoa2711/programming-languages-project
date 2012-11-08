@@ -1,4 +1,3 @@
-;;
 ;; Data structure of a postpaid plan: 	
 ;;	(	
 ;;		plan_name			;; name
