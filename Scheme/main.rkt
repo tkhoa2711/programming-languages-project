@@ -1,9 +1,5 @@
-;; -1 	: denotes unlimited
-;; 0 	: denotes none
-(define FREE 99999999999)
-
 ;;
-;; Data structure of a plan: 	
+;; Data structure of a postpaid plan: 	
 ;;	(	
 ;;		plan_name			;; name
 ;;		price 				;; cost in SGD
@@ -16,23 +12,31 @@
 ;;		)
 ;;		(
 ;;			;; excess amount
-;;			call 			;; cost per incoming call minute
-;;			call 			;; cost per outgoing call minute;;			
+;;			incoming_call	;; cost per incoming call minute
+;;			outgoing_call	;; cost per outgoing call minute;;			
 ;;			sms 			;; cost per SMS
 ;;			data 			;; cost per GB of data
 ;;		)
 ;;	)
-;;
-;; Postpaid plans by the telcos
 
-(define Singtel_3G_Flexi_Lite	#(3G_Flexi_Lite 39.90 #(FREE 100 800 2) #(0 0.1605 0.0535 5.35)))
-(define Singtel_3G_Flexi_Value	#(3G_Flexi_Value 59.90 #(FREE 200 900 3) #(0 0.1605 0.0535 5.35)))
-(define M1_ValueSurf #())
+;; Postpaid plans available
+(define Singtel_3G_Flexi_Lite	#(3G_Flexi_Lite		39.90	#(FREE 100 800 2) #(0 0.1605 0.0535 5.35)))
+(define Singtel_3G_Flexi_Value	#(3G_Flexi_Value	59.90	#(FREE 200 900 3) #(0 0.1605 0.0535 5.35)))
+(define M1_ValueSurf			#(ValueSurf			39		#(FREE 120 600 2) #(0 0.1605 0.0535 5.35)))
+(define M1_LiteSurf				#(LiteSurf			59		#(FREE 300 800 3) #(0 0.1605 0.0535 5.35)))
+;(define M1_SunSaver #(SunSaver 25.68 #(FREE 100 500 0) #(0 0.1605 0.0535 5.35)))
 
+;; A single list of all postpaid plans
 (define postpaid_plans
 	(list	Singtel_3G_Flexi_Value
-			Singtel_3G_Flexi_Lite))
-	
+			Singtel_3G_Flexi_Lite
+			M1_ValueSurf
+			M1_LiteSurf))
+
+;; All the helper functions for later use
+(define (get-plan-name plan)
+	(vector-ref plan 0))
+
 (define (get-plan-price plan)
 	(vector-ref plan 1))
 
@@ -54,44 +58,34 @@
 (define (get-data plan)
 	(vector-ref (get-usage plan) 3))
 
+;; Calculate cost on a particular field
+(define get-cost
+	(lambda (user plan get-function excess-index)
+		(let ((usage (get-function user)) (standard (get-function plan)))
+			(cond	
+				((eq? standard 'FREE) 0)
+				((> usage standard)
+					(*	(- usage standard) (vector-ref (get-excess plan) excess-index)))
+				(else 0)))))
+
+;; Calculate cost for a user with a specific plan
 (define calculate-cost
 	(lambda (user plan)
 		(let ((cost (get-plan-price plan)))
 			(begin
 				(display "-------------") (newline)
-				(cond 	((eq? (get-incoming-call plan) 'FREE) (display "No excess incoming call\n"))
-						((> (get-incoming-call user) (get-incoming-call plan))
-							(set! cost 
-								(+ 	cost 
-									(* 	(- (get-incoming-call user) (get-incoming-call plan))
-										(vector-ref (get-excess plan) 0)))))
-						(else (display "No excess incoming call\n")))
-				(cond 	((eq? (get-outgoing-call plan) 'FREE) (display "No excess outgoing call\n"))
-						((> (get-outgoing-call user) (get-outgoing-call plan))
-							(set! cost 
-								(+ cost 
-									(* 	(- (get-outgoing-call user) (get-outgoing-call plan))
-										(vector-ref (get-excess plan) 1)))))
-						(else (display "No excess outgoing call\n")))				
-				(cond 	((eq? (get-sms plan) 'FREE) (display "No excess SMS usage\n"))	
-						((> (get-sms user) (get-sms plan))
-							(set! cost 
-								(+ 	cost 
-									(* 	(- (get-sms user) (get-sms plan))
-										(vector-ref (get-excess plan) 2)))))
-						(else (display "No excess SMSs usage\n")))
-				(cond 	((eq? (get-data plan) 'FREE) (display "No excess data usage\n"))	
-						((> (get-data user) (get-data plan))
-							(set! cost
-								(+ 	cost 
-									(* 	(- (get-data user) (get-data plan))
-										(vector-ref (get-excess plan) 3)))))
-						(else (display "No excess data usage\n")))
-				(display (vector-ref plan 0)) (display ": ")
+				(set! cost
+					(+	cost
+						(+	(get-cost user plan get-incoming-call 0))
+							(+	(get-cost user plan get-outgoing-call 1))
+								(+	(get-cost user plan get-sms 2))
+									(+	(get-cost user plan get-data 3))))				
+				(display (get-plan-name plan)) (display ": ")
 				(display cost) (newline)
 				(display "-------------") (newline)
 				cost))))
 
+;; Search for the best plan among service providers
 (define search-best-plan
 	(lambda (user postpaid_plans)
 		(letrec ((search 
@@ -102,15 +96,14 @@
 			(apply min (search user postpaid_plans)))))
 
 
-;; Usage pattern: #(vendor plan #(incoming_call outgoing_call sms data))
+;; Usage pattern: #(plan price #(incoming_call outgoing_call sms data))
 ;; Data type:
 ;; 	- incoming_call 				: minute
 ;;	- outgoing_call					: minute
 ;;	- sms 							: number of SMS
 ;;	- data 							: GB
 ;;
-;; Define 3 test cases
+;; Define test cases
 
 (define user1 #(3G_Flexi_Lite 39.90 #(200 300 300 4)))
-;;(calculate-cost user1 Singtel_3G_Flexi_Lite)
 (search-best-plan user1 postpaid_plans)
