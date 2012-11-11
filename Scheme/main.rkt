@@ -99,7 +99,7 @@
 (define ppp-list
 	(lambda (user plans)
 		(if	(null? plans) '()
-			(cons	(vector (get-plan-name plan) (calculate-cost user (car plans)))
+			(cons	(vector (get-plan-name (car plans)) (calculate-cost user (car plans)))
 					(ppp-list user (cdr plans))))))
 
 ;; Prints out the names and prices of the two cheapest postpaid plans
