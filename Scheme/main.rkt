@@ -87,7 +87,7 @@
 			cost)))
 
 ;; Search for the best plan among service providers
-(define search-best-plan
+(define sort-plans
 	(lambda (user plans)
 		(letrec ((search 
 					(lambda (u pl)
@@ -95,33 +95,17 @@
 							(cons (calculate-cost u (car pl)) (search u (cdr pl)))))))
 			(sort (search user plans) <))))
 
-;; Return a vector with the name and price of a plan for a specific user
-(define plan-result
-	(lambda (user plan)
-		(vector (get-plan-name plan) (calculate-cost user plan))))
-
 ;; Return a list containing vectors with name and cost for a specific user pattern of all the postpaid plans.
 (define ppp-list
 	(lambda (user plans)
 		(if	(null? plans) '()
-			(cons (plan-result user (car plans)) (ppp-list user (cdr plans))))))
-
-;; Sort the list of postpaid plan names and prices in ascending order using the insertion sort algorithm
-(define insertion-sort
-	(lambda (ls)
-		(letrec ((insert 
-					(lambda (n ls)
-						(cond
-							((null? ls) (cons n ls))
-							((<= (vector-ref n 1) (vector-ref (car ls) 1)) (cons n ls)) 
-							(else (cons (car ls) (insert n (cdr ls))))))))
-			(if	(null? ls) '()
-				(insert (car ls) (insertion-sort (cdr ls)))))))
+			(cons	(vector (get-plan-name plan) (calculate-cost user (car plans)))
+					(ppp-list user (cdr plans))))))
 
 ;; Prints out the names and prices of the two cheapest postpaid plans
 (define find-two-cheapest-plans
-	(lambda (user plans)        
-		(let ((plans (insertion-sort (ppp-list user plans))))
+	(lambda (user plans)
+		(let ((plans (sort (ppp-list user plans) (lambda (x y) (< (vector-ref x 1) (vector-ref y 1))))))		
 			(display "The two best plans: ")
 			(newline)
 			(display (vector-ref (car plans) 0))
@@ -150,7 +134,7 @@
 (define user3 #(NONE 0 #(100 500 1000 40)))
 
 ;; Find best plan for user1
-(let ((a (search-best-plan user1 postpaid-plans)))
+(let ((a (sort-plans user1 postpaid-plans)))
 	(display "The list of available price in ascending order: ")
 	(display a)
 	(newline))
