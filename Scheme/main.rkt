@@ -12,23 +12,27 @@
 ;;		(
 ;;			;; excess amount
 ;;			incoming_call	;; cost per incoming call minute
-;;			outgoing_call	;; cost per outgoing call minute;;			
+;;			outgoing_call	;; cost per outgoing call minute
 ;;			sms 			;; cost per SMS
 ;;			data 			;; cost per GB of data
 ;;		)
 ;;	)
 
+
 ;; Postpaid plans available
-(define Singtel_3G_Flexi_Lite	#(3G_Flexi_Lite		39.90	#(FREE 100 800 2) #(0 0.1605 0.0535 5.35)))
-(define Singtel_3G_Flexi_Value	#(3G_Flexi_Value	59.90	#(FREE 200 900 3) #(0 0.1605 0.0535 5.35)))
-(define M1_ValueSurf			#(ValueSurf			39		#(FREE 120 600 2) #(0 0.1605 0.0535 5.35)))
-(define M1_LiteSurf				#(LiteSurf			59		#(FREE 300 800 3) #(0 0.1605 0.0535 5.35)))
-;(define M1_SunSaver #(SunSaver 25.68 #(FREE 100 500 0) #(0 0.1605 0.0535 5.35)))
+(define Singtel_3G_Flexi_Lite		#(3G_Flexi_Lite		39.90	#(FREE 100 800 2) #(0 0.1605 0.0535 5.35)))
+(define Singtel_3G_Flexi_Value		#(3G_Flexi_Value	59.90	#(FREE 200 900 3) #(0 0.1605 0.0535 5.35)))
+(define Singtel_3G_Flexi_Plus		#(3G_Flexi_Plus		99.90	#(FREE 500 1000 4) #(0 0.1605 0.0535 5.35)))
+(define Singtel_3G_Flexi_Premium	#(3G_Flexi_Premium	205.00	#(FREE 2000 2500 12) #(0 0.1605 0.0535 5.35)))
+(define M1_ValueSurf				#(ValueSurf			39		#(FREE 120 600 2) #(0 0.1605 0.0535 5.35)))
+(define M1_LiteSurf					#(LiteSurf			59		#(FREE 300 800 3) #(0 0.1605 0.0535 5.35)))
 
 ;; A single list of all postpaid plans
-(define postpaid_plans
+(define postpaid-plans
 	(list	Singtel_3G_Flexi_Value
 			Singtel_3G_Flexi_Lite
+			Singtel_3G_Flexi_Plus
+			Singtel_3G_Flexi_Premium
 			M1_ValueSurf
 			M1_LiteSurf))
 
@@ -57,52 +61,101 @@
 (define (get-data plan)
 	(vector-ref (get-usage plan) 3))
 
-;; Calculate cost on a particular field
+;; Calculate cost of a particular field i.e incoming-call/outgoing-call/sms/data
 (define get-cost
 	(lambda (user plan get-function excess-index)
 		(let ((usage (get-function user)) (standard (get-function plan)))
 			(cond	
 				((eq? standard 'FREE) 0)
-				((> usage standard)
-					(*	(- usage standard) (vector-ref (get-excess plan) excess-index)))
+				((> usage standard) (*	(- usage standard) (vector-ref (get-excess plan) excess-index)))
 				(else 0)))))
 
 ;; Calculate cost for a user with a specific plan
 (define calculate-cost
 	(lambda (user plan)
 		(let ((cost (get-plan-price plan)))
-			(begin
-				(display "-------------") (newline)
-				(set! cost
-					(+	cost
-						(+	(get-cost user plan get-incoming-call 0))
-							(+	(get-cost user plan get-outgoing-call 1))
-								(+	(get-cost user plan get-sms 2))
-									(+	(get-cost user plan get-data 3))))				
-				(display (get-plan-name plan)) (display ": ")
-				(display cost) (newline)
-				(display "-------------") (newline)
-				cost))))
+			(display "-------------") (newline)
+			(set! cost
+				(+	cost
+					(+	(get-cost user plan get-incoming-call 0))
+						(+	(get-cost user plan get-outgoing-call 1))
+							(+	(get-cost user plan get-sms 2))
+								(+	(get-cost user plan get-data 3))))				
+			(display (get-plan-name plan)) (display ": ")
+			(display cost) (newline)
+			(display "-------------") (newline)
+			cost)))
 
 ;; Search for the best plan among service providers
 (define search-best-plan
-	(lambda (user postpaid_plans)
+	(lambda (user plans)
 		(letrec ((search 
-					(lambda (u ls)
-						(if (null? ls)
-							'()
-							(cons (calculate-cost u (car ls)) (search u (cdr ls)))))))
-			(apply min (search user postpaid_plans)))))
+					(lambda (u pl)
+						(if (null? pl) '()
+							(cons (calculate-cost u (car pl)) (search u (cdr pl)))))))
+			(sort (search user plans) <))))
+
+;; Return a vector with the name and price of a plan for a specific user
+(define plan-result
+	(lambda (user plan)
+		(vector (get-plan-name plan) (calculate-cost user plan))))
+
+;; Return a list containing vectors with name and cost for a specific user pattern of all the postpaid plans.
+(define ppp-list
+	(lambda (user plans)
+		(if	(null? plans) '()
+			(cons (plan-result user (car plans)) (ppp-list user (cdr plans))))))
+
+;; Sort the list of postpaid plan names and prices in ascending order using the insertion sort algorithm
+(define insertion-sort
+	(lambda (ls)
+		(letrec ((insert 
+					(lambda (n ls)
+						(cond
+							((null? ls) (cons n ls))
+							((<= (vector-ref n 1) (vector-ref (car ls) 1)) (cons n ls)) 
+							(else (cons (car ls) (insert n (cdr ls))))))))
+			(if	(null? ls) '()
+				(insert (car ls) (insertion-sort (cdr ls)))))))
+
+;; Prints out the names and prices of the two cheapest postpaid plans
+(define find-two-cheapest-plans
+	(lambda (user plans)        
+		(let ((plans (insertion-sort (ppp-list user plans))))
+			(display "The two best plans: ")
+			(newline)
+			(display (vector-ref (car plans) 0))
+			(display ": ")
+			(display (vector-ref (car plans) 1))
+			(display " SGD")
+			(newline)
+			(display (vector-ref (cadr plans) 0))
+			(display ": ")
+			(display (vector-ref (cadr plans) 1))
+			(display " SGD")
+			(newline) (newline))))
 
 
-;; Usage pattern: #(plan price #(incoming_call outgoing_call sms data))
+;; Usage pattern: #(current-plan current-cost #(incoming_call outgoing_call sms data))
 ;; Data type:
 ;; 	- incoming_call 				: minute
 ;;	- outgoing_call					: minute
 ;;	- sms 							: number of SMS
 ;;	- data 							: GB
-;;
-;; Define test cases
 
-(define user1 #(3G_Flexi_Lite 39.90 #(200 300 300 4)))
-(search-best-plan user1 postpaid_plans)
+
+;; Define test cases
+(define user1 #(NONE 0 #(200 300 300 4)))
+(define user2 #(NONE 0 #(100 3000 300 4)))
+(define user3 #(NONE 0 #(100 500 1000 40)))
+
+;; Find best plan for user1
+(let ((a (search-best-plan user1 postpaid-plans)))
+	(display "The list of available price in ascending order: ")
+	(display a)
+	(newline))
+
+;; Find 2 cheapest plans for 3 users
+(find-two-cheapest-plans user1 postpaid-plans)
+(find-two-cheapest-plans user2 postpaid-plans)
+(find-two-cheapest-plans user3 postpaid-plans)
